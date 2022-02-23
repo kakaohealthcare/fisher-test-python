@@ -31,7 +31,7 @@ prt = c_double()
 pre = c_double()
 
 
-fisher.fexact(
+ret = fisher.fexact(
     nrow,
     ncol,
     ary_c,
@@ -45,5 +45,6 @@ fisher.fexact(
     30
 )
 
+print(ret)
 print(prt.value)
 print(pre.value)
