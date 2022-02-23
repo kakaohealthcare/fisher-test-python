@@ -1,0 +1,1 @@
+python ./fisher/fisher.py
