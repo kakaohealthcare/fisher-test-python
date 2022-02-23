@@ -3,9 +3,9 @@ This version based on the version in http://netlib.org/toms/
 
 By jungwoo@linewalks.com
 */
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-
 
 #define max(x, y) x > y ? x : y
 
@@ -39,8 +39,9 @@ int f2xact(
     int *iwk,
     double *rwk);
 
-int ptrerr(int code, const char *message);
+int prterr(int code, const char *message);
 int iwork(int iwkmax, int* iwkpt, int number, int itype);
+void isort(int n, int *ix);
 
 int fexact(
     int nrow,
@@ -162,15 +163,15 @@ int fexact(
   // create iwkmax * 4 = iwkmax / 2 * 8 bytes size workspace
   double* equivalence = (double*)malloc(iwkmax / 2 * sizeof(double));
 
-#define dwrk(i) equivalence + i
-#define iwrk(i) ((int*)equivalence) + i
-#define rwrk(i) ((float*)equivalence) + i
+#define dwrk(i) equivalence + i - 1
+#define iwrk(i) ((int*)equivalence) + i - 1
+#define rwrk(i) ((float*)equivalence) + i - 1
 
   // index starts from 0
   int iwkpt = 0;
 
   if (nrow > ldtabl) {
-    return ptrerr(1, "NROW must be less than or equal to LDTABL.");
+    return prterr(1, "NROW must be less than or equal to LDTABL.");
   }
 
   int i, j;
@@ -179,13 +180,13 @@ int fexact(
   for (i = 0; i < nrow; ++i) {
     for (j = 0; j < ncol; ++j) {
       if (table[i + j * ldtabl] < 0) {
-        return ptrerr(2, "All elements of TABLE must be positive.");
+        return prterr(2, "All elements of TABLE must be positive.");
       }
-      ntot = ntot + table[i, j * ldtabl];
+      ntot = ntot + table[i + j * ldtabl];
     }
   }
   if (ntot == 0) {
-    return ptrerr(3, "All elements of TABLE are zero.");
+    return prterr(3, "All elements of TABLE are zero.");
   }
 
   int nco = max(nrow, ncol);
@@ -195,7 +196,7 @@ int fexact(
 
 #define call_iwork(var, iwkmax, iwkpt, number, type) \
   var = iwork(iwkmax, &iwkpt, number, type); \
-  if (var < 0) { return ptrerr(40, "Out of workspace."); }
+  if (var < 0) { return prterr(40, "Out of workspace."); }
 
   int i1, i2, i3, i3a, i3b, i3c, iiwk, irwk;
 
@@ -286,13 +287,141 @@ int f2xact(
     int *key2,
     int *iwk,
     double *rwk) {
+/*
+-----------------------------------------------------------------------
+  Name:       F2XACT
+
+  Purpose:    Computes Fisher's exact test for a contingency table,
+              routine with workspace variables specified.
+
+  Usage:      CALL F2XACT (NROW, NCOL, TABLE, LDTABL, EXPECT, PERCNT,
+                          EMIN, PRT, PRE, FACT, ICO, IRO, KYY, IDIF,
+                          IRN, KEY, LDKEY, IPOIN, STP, LDSTP, IFRQ,
+                          DLP, DSP, TM, KEY2, IWK, RWK)
+-----------------------------------------------------------------------
+*/
+  /*
+    IMAX is the largest representable
+    integer on the machine
+  */
+  const int imax = INT_MAX;
+  /*
+    TOL is chosen as the square root of
+    the smallest relative spacing
+  */
+  const double tol = 3.45254e-7;
+  /*
+    EMX is a large positive value used 
+    in comparing expected values
+  */
+  const double emx = 1.0e30;
+
+  int i, j;
+  double emn;
+
+  // Initialize KEY array
+  for (i = 1; i <= ldkey * 1; ++i) {
+    key[i] = -9999;
+    key2[i] = -9999;
+  }
+
+  // Initialize parameters
+  *pre = 0.0;
+  int itop = 0;
+  if (expect > 0.0) {
+    emn = emin;
+  } else {
+    emn = emx;
+  }
+
+  // Initialize pointers for workspace
+  int k;
+
+  // f3xact
+  k = max(nrow, ncol);
+  int i31 = 1;
+  int i32 = i31 + k;
+  int i33 = i32 + k;
+  int i34 = i33 + k;
+  int i35 = i34 + k;
+  int i36 = i35 + k;
+  int i37 = i36 + k;
+  int i38 = i37 + k;
+  int i39 = i38 + 400;
+  int i310 = 1;
+  int i311 = 401;
+
+  // f4axt
+  k = nrow + ncol + 1;
+  int i41 = 1;
+  int i42 = i41 + k;
+  int i43 = i42 + k;
+  int i44 = i43 + k;
+  int i45 = i44 + k;
+  int i46 = i45 + k;
+  int i47 = i46 + k * max(nrow, ncol);
+  int i48 = 1;
+
+  if (nrow > ldtabl) {
+    return prterr(1, "NROW must be less than or equal to LDTABL.");
+  }
+  if (ncol <= 1) {
+    return prterr(4, "NCOL must be greater than 1.0.");
+  }
+
+  int ntot = 0;
+  for (i = 0; i < nrow; ++i) {
+    iro[i] = 0;
+    for (j = 0; j < ncol; ++j) {
+      if (table[i + j * ldtabl] < 0) {
+        return prterr(2, "All elements of TABLE must be positive.");
+      }
+      iro[i] += table[i + j * ldtabl];
+      ntot += table[i+  j * ldtabl];
+    }
+  }
+
+  if (ntot == 0) {
+    return prterr(3, "All elements of TABLE are zero.");
+  }
+
+  isort(nrow, iro);
+  isort(ncol, ico);
+
+  int nro, nco, itmp;
+
+  if (nrow > ncol) {
+    nro = ncol;
+    nco = nrow;
+    for (i = 0; i < nrow; ++i) {
+      itmp = iro[i];
+      if (i <= ncol) {
+        iro[i] = ico[i];
+      }
+      ico[i] = itmp;
+    }
+  } else {
+    nro = nrow;
+    nco = ncol;
+  }
+
+  kyy[0] = 1;
+  for (i = 1; i < nro; ++i) {
+    if (iro[i-1] + 1 <= imax / kyy[i - 1]) {
+      kyy[i] = kyy[i - 1] * (iro[i - 1] + 1);
+      j = j / kyy[i - 1];
+    } else {
+      return prterr(5, "");
+    }
+  }
+
+
   *prt = 1234.5678;
   *pre = 8765.4321;
   return 0;
 }
 
-
-int ptrerr(int code, const char *message) {
+int prterr(int code, const char *message) {
   printf("%d %s\n", code, message);
   return code;
 }
@@ -313,4 +442,89 @@ int iwork(int iwkmax, int* iwkpt, int number, int itype) {
     return -1;
   }
   return ret;
+}
+
+void isort(int n, int *ix) {
+/*
+-----------------------------------------------------------------------
+  Name:       ISORT
+
+  Purpose:    Shell sort for an integer vector.
+
+  Usage:      CALL ISORT (N, IX)
+
+  Arguments:
+     N      - Lenth of vector IX.  (Input)
+     IX     - Vector to be sorted.  (Input/output)
+-----------------------------------------------------------------------
+*/
+  int i, ikey, il[10], it, iu[10], j, kl, ku, m;
+
+  m = 0;
+  i = 0;
+  j = n - 1;
+
+L10:
+  if (i >= j) {
+    goto L40;
+  }
+  kl = i;
+  ku = j;
+  ikey = i;
+  ++j;
+
+// Find element in first half
+L20:
+  ++i;
+  if (i < j) {
+    if (ix[ikey] >= ix[i]) {
+      goto L20;
+    }
+  }
+
+// Find element in second half
+L30:
+  --j;
+  if (ix[j] > ix[ikey]) {
+    goto L30;
+  }
+//Interchange
+  if (i < j) {
+    it = ix[i];
+    ix[i] = ix[j];
+    ix[j] = it;
+    goto L20;
+  }
+  it = ix[ikey];
+  ix[ikey] = ix[j];
+  ix[j] = it;
+
+// Save upper and lower subscripts of the array yet to be sorted
+  if (m <= 10) {
+    if (j - kl < ku - j) {
+      il[m] = j + 1;
+      iu[m] = ku;
+      i = kl;
+      --j;
+    } else {
+      il[m] = kl;
+      iu[m] = j - 1;
+      i = j + 1;
+      j = ku;
+    }
+    ++m;
+    goto L10;
+  } else {
+  }
+
+// Use another segment
+L40:
+  --m;
+  if (m < 0) {
+    return;
+  }
+
+  i = il[m];
+  j = iu[m];
+  goto L10;
 }

@@ -30,6 +30,8 @@ emin = c_double(0.)
 prt = c_double()
 pre = c_double()
 
+# fisher.test_func()
+
 
 ret = fisher.fexact(
     nrow,
