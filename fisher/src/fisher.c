@@ -4,6 +4,7 @@ This version based on the version in http://netlib.org/toms/
 By jungwoo@linewalks.com
 */
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -38,6 +39,8 @@ int f2xact(
     int *key2,
     int *iwk,
     double *rwk);
+
+double f9xact(int n, int ntot, const int ir[], const double fact[]);
 
 int prterr(int code, const char *message);
 int iwork(int iwkmax, int* iwkpt, int number, int itype);
@@ -162,13 +165,13 @@ int fexact(
 
   // create iwkmax * 4 = iwkmax / 2 * 8 bytes size workspace
   double* equivalence = (double*)malloc(iwkmax / 2 * sizeof(double));
+  printf("equivalence %p\n", equivalence);
 
 #define dwrk(i) equivalence + i - 1
 #define iwrk(i) ((int*)equivalence) + i - 1
 #define rwrk(i) ((float*)equivalence) + i - 1
 
-  // index starts from 0
-  int iwkpt = 0;
+  int iwkpt = 1;
 
   if (nrow > ldtabl) {
     return prterr(1, "NROW must be less than or equal to LDTABL.");
@@ -201,8 +204,11 @@ int fexact(
   int i1, i2, i3, i3a, i3b, i3c, iiwk, irwk;
 
   call_iwork(i1, iwkmax, iwkpt, ntot + 1, ireal)
+  printf("%d iwkpt %d\n", i1, iwkpt);
   call_iwork(i2, iwkmax, iwkpt, nco, 2)
+  printf("%d iwkpt %d\n", i2, iwkpt);
   call_iwork(i3, iwkmax, iwkpt, nco, 2)
+  printf("%d iwkpt %d\n", i3, iwkpt);
   call_iwork(i3a, iwkmax, iwkpt, nco, 2)
   call_iwork(i3b, iwkmax, iwkpt, nro, 2)
   call_iwork(i3c, iwkmax, iwkpt, nro, 2)
@@ -254,7 +260,9 @@ int fexact(
     iwrk(iiwk),
     dwrk(irwk)
   );
+  printf("equivalence %p\n", equivalence);
   free(equivalence);
+  printf("free success %d\n", ret);
   return ret;
 }
 
@@ -319,6 +327,13 @@ int f2xact(
   int i, j;
   double emn;
 
+  // Do this for index to start from 1 (to match code with Fortran)
+  // fact is excluded, fact index starts from 0 (in Fortran too)
+  table -= ldtabl + 1;  // go back 1 row
+  --ico; --iro; --kyy; --idif; --irn; --key;
+  --ipoin; --stp;
+  --ifrq; --dlp; --dsp; --tm; --key2; --iwk; --rwk;
+
   // Initialize KEY array
   for (i = 1; i <= ldkey * 1; ++i) {
     key[i] = -9999;
@@ -362,6 +377,7 @@ int f2xact(
   int i47 = i46 + k * max(nrow, ncol);
   int i48 = 1;
 
+  // Check table dimensions
   if (nrow > ldtabl) {
     return prterr(1, "NROW must be less than or equal to LDTABL.");
   }
@@ -369,15 +385,18 @@ int f2xact(
     return prterr(4, "NCOL must be greater than 1.0.");
   }
 
+#define get_table(i, j) table[i + j * ldtabl]
+
+  // Compute row marginals and total
   int ntot = 0;
-  for (i = 0; i < nrow; ++i) {
+  for (i = 1; i <= nrow; ++i) {
     iro[i] = 0;
-    for (j = 0; j < ncol; ++j) {
-      if (table[i + j * ldtabl] < 0) {
+    for (j = 1; j <= ncol; ++j) {
+      if (get_table(i, j) < 0.) {
         return prterr(2, "All elements of TABLE must be positive.");
       }
-      iro[i] += table[i + j * ldtabl];
-      ntot += table[i+  j * ldtabl];
+      iro[i] += get_table(i, j);
+      ntot += get_table(i, j);
     }
   }
 
@@ -385,15 +404,25 @@ int f2xact(
     return prterr(3, "All elements of TABLE are zero.");
   }
 
+  // Column marginals
+  for (i = 1; i <= ncol; ++i) {
+    ico[i] = 0;
+    for (j = 1; j <= nrow; ++j) {
+      ico[i] += get_table(j, i);
+    }
+  }
+
+  // sort
   isort(nrow, iro);
   isort(ncol, ico);
 
+  // Determine row and column marginals
   int nro, nco, itmp;
-
   if (nrow > ncol) {
     nro = ncol;
     nco = nrow;
-    for (i = 0; i < nrow; ++i) {
+    // Interchange row and column marginals
+    for (i = 1; i <= nrow; ++i) {
       itmp = iro[i];
       if (i <= ncol) {
         iro[i] = ico[i];
@@ -405,20 +434,95 @@ int f2xact(
     nco = ncol;
   }
 
-  kyy[0] = 1;
-  for (i = 1; i < nro; ++i) {
-    if (iro[i-1] + 1 <= imax / kyy[i - 1]) {
+  // Get multiplers for stack
+  kyy[1] = 1;
+  for (i = 2; i <= nro; ++i) {
+    // Hash table multipliers
+    if (iro[i - 1] + 1 <= imax / kyy[i - 1]) {
       kyy[i] = kyy[i - 1] * (iro[i - 1] + 1);
       j = j / kyy[i - 1];
     } else {
-      return prterr(5, "");
+      return prterr(5, "The hash table key cannot be computed \
+        because the largest key is larger than the \
+        largest representable integer.  The \
+        algorithm cannot proceed.");
     }
   }
+
+  // Maximum product
+  if (iro[nro - 1] + 1 < imax / kyy[nro - 1]) {
+    // TODO not using kmax maybe?
+    int kmax = (iro[nro] + 1) * kyy[nro - 1];
+  } else {
+    return prterr(5, "The hash table key cannot be computed \
+        because the largest key is larger than the \
+        largest representable integer.  The \
+        algorithm cannot proceed.");
+  }
+
+  // Compute log factorials
+  fact[0] = 0.0;
+  fact[1] = 0.0;
+  fact[2] = log(2.0);
+  for (i = 3; i <= ntot; i += 2) {
+    fact[i] = fact[i - 1] * log((double)i);
+    j = i + 1;
+    if (j <= ntot) {
+      fact[j] = fact[i] + fact[2] + fact[j / 2] - fact[j / 2 - 1];
+    }
+  }
+
+  // Compute observed path length: OBS
+  double obs = tol;
+  ntot = 0;
+  for (j = 1; j <= nco; ++j) {
+    double dd = 0.0;
+    for (i = 1; i <= nro; ++i) {
+      if (nrow <= ncol) {
+        dd = dd + fact[get_table(i, j)];
+        ntot = ntot + get_table(i, j);
+      } else {
+        dd = dd + fact[get_table(j, i)];
+        ntot = ntot + get_table(j, i);
+      }
+    }
+    obs = obs + fact[ico[j]] - dd;
+  }
+
+  // Denominator of observed table: DRO
+  // double dro = f9xact(nro, ntot, iro, fact);
+  // *prt = exp(obs - dro);
+
+  // Initialize pointers
+  // k = nco;
+  // int last = ldkey;
+  // int jkey = ldkey;
+  // int jstp = ldstp;
+  // int jstp2 = 3 * ldstp;
+  // int jstp3 = 4 * ldstp;
+  // int jstp4 = 5 * ldstp;
+  // int ikkey = 0;
+  // int ikstp = 0;
+  // int ikstp2 = 2 * ldstp;
+  // int ipo = 1;
+  // ipoin[0] = 1;
+  // stp[0] = 0.0;
+  // ifrq[0] = 1;
+  // ifrq[ikstp2] = -1;
+
+  // int kb = nco - k;
+  // int ks = 0;
+  // int n = ico[kb];
+  // / 
 
 
   *prt = 1234.5678;
   *pre = 8765.4321;
   return 0;
+}
+
+double f9xact(int n, int ntot, const int ir[], const double fact[]) {
+  return 123.456;
 }
 
 int prterr(int code, const char *message) {
@@ -460,9 +564,12 @@ void isort(int n, int *ix) {
 */
   int i, ikey, il[10], it, iu[10], j, kl, ku, m;
 
-  m = 0;
-  i = 0;
-  j = n - 1;
+  // Do this for index to start from 1 (to match code with Fortran)
+  --ix;
+
+  m = 1;
+  i = 1;
+  j = n;
 
 L10:
   if (i >= j) {
@@ -477,7 +584,7 @@ L10:
 L20:
   ++i;
   if (i < j) {
-    if (ix[ikey] >= ix[i]) {
+    if (ix[ikey] >=ix[i]) {
       goto L20;
     }
   }
@@ -500,7 +607,7 @@ L30:
   ix[j] = it;
 
 // Save upper and lower subscripts of the array yet to be sorted
-  if (m <= 10) {
+  if (m < 11) {
     if (j - kl < ku - j) {
       il[m] = j + 1;
       iu[m] = ku;
@@ -520,11 +627,39 @@ L30:
 // Use another segment
 L40:
   --m;
-  if (m < 0) {
+  if (m == 0) {
     return;
   }
 
   i = il[m];
   j = iu[m];
   goto L10;
+}
+
+void test_func2(const int table[], int ldtabl) {
+  printf("%p\n", table);
+  table -= ldtabl;
+  printf("%p\n", table);
+  printf("%d\n", table[0]);
+  printf("%d\n", table[1]);
+}
+
+void test_func() {
+  // int* equiv = (int*)malloc(5 * sizeof(int));
+  // int i;
+  // for (i = 0; i < 5; ++i) {
+  //   free(&equiv[i]);
+  // }
+
+  // const int table[] = {101, 202, 303, 404, 505};
+  // test_func2(table, 5);
+
+  // int* a = equiv;
+  // printf("%p\n", a);
+  // printf("%d\n", *a);
+
+  // --a;
+  // printf("%p\n", a);
+  // printf("%d\n", *a);
+  // free(equiv);
 }

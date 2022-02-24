@@ -14,8 +14,8 @@ lib_path = os.path.join(os.getcwd(), "fisher", "src", "fisher.so")
 fisher = ctypes.cdll.LoadLibrary(lib_path)
 
 ary = np.array([
-    [100, 3, 100, 204],
-    [3, 5, 1, 3,]
+    [100, 3, 100, 204, 404],
+    [3, 5, 1, 3, 5]
 ])
 
 nrow, ncol = ary.shape
@@ -30,7 +30,7 @@ emin = c_double(0.)
 prt = c_double()
 pre = c_double()
 
-# fisher.test_func()
+fisher.test_func()
 
 
 ret = fisher.fexact(
