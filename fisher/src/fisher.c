@@ -5,10 +5,12 @@ By jungwoo@linewalks.com
 */
 #include <limits.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #define max(x, y) x > y ? x : y
+#define min(x, y) x < y ? x : y
 
 
 int f2xact(
@@ -19,32 +21,108 @@ int f2xact(
     double expect,
     double percnt,
     double emin,
-    double *prt,
-    double *pre,
-    double *fact,
-    int *ico,
-    int *iro,
-    int *kyy,
-    int *idif,
-    int *irn,
-    int *key,
+    double* prt,
+    double* pre,
+    double* fact,
+    int* ico,
+    int* iro,
+    int* kyy,
+    int* idif,
+    int* irn,
+    int* key,
     int ldkey,
-    int *ipoin,
-    double *stp,
+    int* ipoin,
+    double* stp,
     int ldstp,
-    int *ifrq,
-    double *dlp,
-    double *dsp,
-    double *tm,
-    int *key2,
-    int *iwk,
-    double *rwk);
+    int* ifrq,
+    double* dlp,
+    double* dsp,
+    double* tm,
+    int* key2,
+    int* iwk,
+    double* rwk);
+
+int f3xact(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double* dlp,
+    int* mm, 
+    const double fact[],
+    int* ico,
+    int* iro,
+    int* it,
+    int* lb,
+    int* nr,
+    int* nt,
+    int* nu,
+    int* itc,
+    int* ist,
+    double* stv,
+    double* alen,
+    double tol);
+
+int f4xact(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double dsp,
+    const double fact[],
+    int* icstk,
+    int* ncstk,
+    int* lstk,
+    int* mstk,
+    int* nstk,
+    int* nrstk,
+    int* irstk,
+    double* ystk,
+    double tol);
+
+int f5xact(
+    double pastp,
+    double tol,
+    int* kval,
+    int* key,
+    int ldkey,
+    int* ipoin,
+    double* stp,
+    int ldstp,
+    int* ifrq,
+    int* npoin,
+    int* nr,
+    int* nl,
+    int ifreq,
+    int* itop,
+    int ipsh);
+
+int f6xact(
+    int nrow,
+    const int irow[],
+    int* iflag,
+    int* kyy,
+    int* key,
+    int ldkey,
+    int* last,
+    int* ipn);
+
+int f7xact(
+    int nrow,
+    int* imax,
+    int* idif,
+    int* k,
+    int* ks,
+    int* iflag);
+
 
 double f9xact(int n, int ntot, const int ir[], const double fact[]);
 
-int prterr(int code, const char *message);
+int prterr(int code, const char* message);
 int iwork(int iwkmax, int* iwkpt, int number, int itype);
-void isort(int n, int *ix);
+void isort(int n, int* ix);
+double gammds(double y, double p, int* ifault);
+double alogam(double x, int* ifault);
 
 int fexact(
     int nrow,
@@ -232,33 +310,33 @@ int fexact(
   call_iwork(i10, iwkmax, iwkpt, 2 * ldkey, 2)
 
   int ret = f2xact(
-    nrow,
-    ncol,
-    table,
-    ldtabl,
-    expect,
-    percnt,
-    emin,
-    prt,
-    pre,
-    dwrk(i1),
-    iwrk(i2),
-    iwrk(i3),
-    iwrk(i3a),
-    iwrk(i3b),
-    iwrk(i3c),
-    iwrk(i4),
-    ldkey,
-    iwrk(i5),
-    dwrk(i6),
-    ldstp,
-    iwrk(i7),
-    dwrk(i8),
-    dwrk(i9),
-    dwrk(i9a),
-    iwrk(i10),
-    iwrk(iiwk),
-    dwrk(irwk)
+      nrow,
+      ncol,
+      table,
+      ldtabl,
+      expect,
+      percnt,
+      emin,
+      prt,
+      pre,
+      dwrk(i1),
+      iwrk(i2),
+      iwrk(i3),
+      iwrk(i3a),
+      iwrk(i3b),
+      iwrk(i3c),
+      iwrk(i4),
+      ldkey,
+      iwrk(i5),
+      dwrk(i6),
+      ldstp,
+      iwrk(i7),
+      dwrk(i8),
+      dwrk(i9),
+      dwrk(i9a),
+      iwrk(i10),
+      iwrk(iiwk),
+      dwrk(irwk)
   );
   printf("equivalence %p\n", equivalence);
   free(equivalence);
@@ -351,6 +429,7 @@ int f2xact(
 
   // Initialize pointers for workspace
   int k;
+  int kmax;
 
   // f3xact
   k = max(nrow, ncol);
@@ -452,7 +531,7 @@ int f2xact(
   // Maximum product
   if (iro[nro - 1] + 1 < imax / kyy[nro - 1]) {
     // TODO not using kmax maybe?
-    int kmax = (iro[nro] + 1) * kyy[nro - 1];
+    kmax = (iro[nro] + 1) * kyy[nro - 1];
   } else {
     return prterr(5, "The hash table key cannot be computed \
         because the largest key is larger than the \
@@ -490,34 +569,459 @@ int f2xact(
   }
 
   // Denominator of observed table: DRO
-  // double dro = f9xact(nro, ntot, iro, fact);
-  // *prt = exp(obs - dro);
+  double dro = f9xact(nro, ntot, iro, fact);
+  *prt = exp(obs - dro);
 
   // Initialize pointers
-  // k = nco;
-  // int last = ldkey;
-  // int jkey = ldkey;
-  // int jstp = ldstp;
-  // int jstp2 = 3 * ldstp;
-  // int jstp3 = 4 * ldstp;
-  // int jstp4 = 5 * ldstp;
-  // int ikkey = 0;
-  // int ikstp = 0;
-  // int ikstp2 = 2 * ldstp;
-  // int ipo = 1;
-  // ipoin[0] = 1;
-  // stp[0] = 0.0;
-  // ifrq[0] = 1;
-  // ifrq[ikstp2] = -1;
+  k = nco;
+  int last = ldkey + 1;
+  int jkey = ldkey + 1;
+  int jstp = ldstp + 1;
+  int jstp2 = 3 * ldstp + 1;
+  int jstp3 = 4 * ldstp + 1;
+  int jstp4 = 5 * ldstp + 1;
+  int ikkey = 0;
+  int ikstp = 0;
+  int ikstp2 = 2 * ldstp;
+  int ipo = 1;
+  ipoin[0] = 1;
+  stp[0] = 0.0;
+  ifrq[0] = 1;
+  ifrq[ikstp2] = -1;
 
-  // int kb = nco - k;
-  // int ks = 0;
-  // int n = ico[kb];
-  // / 
+  int kb, ks, n, kd;
+  int ii, nrb, nro2, ifault, iflag;
+  int ipsh, ipn, ifreq, chisq;
+  double pastp, obs2, obs3, dspt, tmp, ncell, df, pv;
+  double ddf, drn;
 
+L110:
+  kb = nco - k + 1;
+  ks = 0;
+  n = ico[kb];
+  kd = nro + 1;
+  kmax = nro;
 
-  *prt = 1234.5678;
-  *pre = 8765.4321;
+  // IDIF is the difference in going to th daughter
+  for (i = 1; i <= nro; ++i) {
+    idif[i] = 0;
+  }
+
+L130:
+  // Generate the first daughter
+  --kd;
+  ntot = min(n, iro[kd]);
+  idif[kd] = ntot;
+  if (idif[kmax] == 0) kmax = kmax - 1;
+  n = n - ntot;
+  if (n > 0 && kd != 1) goto L130;
+  if (n != 0) goto L310;
+
+  int k1 = k - 1;
+  n = ico[kb];
+  ntot = 0;
+  for (i = kb + 1; i <= nco; ++i) {
+    ntot = ntot + ico[i];
+  }
+
+  // Arc to daughter length=ICO(KB)
+L150:
+  for (i = 1; i <= nro; ++i) {
+    irn[i] = iro[i] - idif[i];
+  }
+
+  // Sort irn
+  if (k1 > 1) {
+    if (nro == 2) {
+      if (irn[1] > irn[2]) {
+        ii = irn[1];
+        irn[1] = irn[2];
+        irn[2] = ii;
+      }
+    } else if (nro == 3) {
+      ii = irn[1];
+      if (ii > irn[3]) {
+        if (ii > irn[2]) {
+          if (irn[2] > irn[3]) {
+            irn[1] = irn[3];
+            irn[3] = ii;
+          } else {
+            irn[1] = irn[2];
+            irn[2] = irn[3];
+            irn[3] = ii;
+          }
+        } else {
+          irn[1] = irn[3];
+          irn[3] = irn[2];
+          irn[2] = ii;
+        }
+      } else if (ii > irn[2]) {
+        irn[1] = irn[2];
+        irn[2] = ii;
+      } else if (irn[2] > irn[3]) {
+        ii = irn[2];
+        irn[2] = irn[3];
+        irn[3] = ii;
+      }
+    } else {
+      for (j = 2; j <= nro; ++j) {
+        i = j - 1;
+        ii = irn[j];
+L170:
+        if (ii < irn[i]) {
+          irn[i + 1] = irn[i];
+          i = i - 1;
+          if (i > 0) goto L170;
+        }
+        irn[i + 1] = ii;
+      }
+    }
+    // Adjust start for zero
+    for (i = 1; i <= nro; ++i) {
+      if (irn[i] != 0) {
+        break;
+      }
+    }
+    nrb = i;
+    nro2 = nro - i + 1;
+  } else {
+    nrb = 1;
+    nro2 = nro;
+  }
+
+  // Some table values
+  printf("Some Table values");
+  ddf = f9xact(nro, n, &idif[1], fact);
+  drn = f9xact(nro2, ntot, &irn[nrb], fact) - dro + ddf;
+
+  int kval, itp;
+  // Get hash value
+  if (k1 > 1) {
+    kval = irn[1] + irn[2] * kyy[2];
+    for (i=3; i <= nro; ++i) {
+      kval += irn[i] * kyy[i];
+    }
+
+    i = kval % (2 * ldkey) + 1;
+    
+    for (itp = i; itp <= 2 * ldkey; ++itp) {
+      ii = key2[itp];
+      if (ii == kval) goto L240;
+      else if (ii < 0) {
+        key2[itp] = kval;
+        dlp[itp] = 1.0;
+        dsp[itp] = 1.0;
+        goto L240;
+      }
+    }
+
+    for (itp = 1; itp <= i - 1; ++itp) {
+      ii = key2[itp];
+      if (ii == kval) goto L240;
+      else if (ii < 0) {
+        key[itp] = kval;
+        dlp[itp] = 1.0;
+        goto L240;
+      }
+    }
+
+    return prterr(
+        6,
+        "LDKEY is too small.  It is not possible to \
+        give thevalue of LDKEY required, but you could \
+        try doubling LDKEY (and possibly LDSTP)"
+    );
+  }
+
+L240:
+  // boolean value
+  ipsh = 1;
+
+  // Recover pastp
+  ipn = ipoin[ipo + ikkey];
+  pastp = stp[ipn + ikstp];
+  ifreq = ifrq[ipn + ikstp];
+
+  // Compute shortest and longest path
+  if (k1 > 1) {
+    obs2 = obs - fact[ico[kb + 1]] - fact[ico[kb + 2]] - ddf;
+    for (i = 3; i <= k1; ++i) {
+      obs2 = obs2 - fact[ico[kb + i]];
+    }
+
+    if (dlp[itp] > 0.0) {
+      dspt = obs - obs2 - ddf;
+      // Compute longest path
+      dlp[itp] = 0.0;
+
+      int f3_ret = f3xact(
+          nro2,
+          &irn[nrb],
+          k1,
+          &ico[kb + 1],
+          &dlp[itp],
+          &ntot,
+          fact,
+          &iwk[i31],
+          &iwk[i32],
+          &iwk[i33],
+          &iwk[i34],
+          &iwk[i35],
+          &iwk[i36],
+          &iwk[i37],
+          &iwk[i38],
+          &iwk[i39],
+          &rwk[i310],
+          &rwk[i311],
+          tol
+      );
+      if (f3_ret != 0) return f3_ret;
+
+      dlp[itp] = min(0.0, dlp[itp]);
+
+      // Compute shortest path
+      dsp[itp] = dspt;
+      int f4_ret = f4xact(
+          nro2,
+          &irn[nrb],
+          k1,
+          &ico[kb + 1],
+          dsp[itp],
+          fact,
+          &iwk[i47],
+          &iwk[i41],
+          &iwk[i42],
+          &iwk[i43],
+          &iwk[i44],
+          &iwk[i45],
+          &iwk[i46],
+          &rwk[i48],
+          tol
+      );
+      dsp[itp] = min(0.0, dsp[itp] - dspt);
+
+      // Use chi-squared approximation?
+      if ((double)(irn[nrb] * ico[kb + 1]) / (double)ntot > emn) {
+        ncell = 0.0;
+        for (i = 1; i <= nro2; ++i) {
+          for (j = 1; j <= k1; ++j) {
+            if (irn[nrb + i - 1] * ico[kb + j] >= ntot * expect) {
+              ++ncell;
+            }
+          }
+        }
+        if (ncell * 100 >= k1 * nro2 * percnt) {
+          tmp = 0.0;
+          for (i = 1; i <= nro2; ++i) {
+            tmp += fact[irn[nrb + i - 1]] - fact[irn[nrb + i - 1] - 1];
+          }
+          tmp = tmp * (k1 - 1);
+          for (j= 1; j <= k1; ++j) {
+            tmp += (nro2 - 1) * (fact[ico[kb + j]] - fact[ico[kb + j] - 1]);
+          }
+
+          df = (nro2 - 1) * (k1 - 1);
+          tmp += df * 1.83787706640934548356065947281;
+          tmp -= (nro2 * k1 - 1) * (fact[ntot] - fact[ntot-1]);
+          tm[itp] = -2.0 * (obs - dro) - tmp;
+        } else {
+          // tm(itp) set to a flag value
+          tm[itp] = -9876.0;
+        }
+      } else {
+        tm[itp] = -9876.0;
+      }
+    }
+
+    obs3 = obs2 - dlp[itp];
+    obs2 = obs2 - dsp[itp];
+    if (tm[itp] == -9876.0) {
+      chisq = 0;
+    } else {
+      chisq = 1;
+      tmp = tm[itp];
+    }
+  } else {
+    obs2 = obs - drn - dro;
+    obs3 = obs2;
+  }
+
+  // Process node with new PASTP
+L300:
+  if (pastp <= obs3) {
+    // Update pre
+    *pre += (double)ifreq * exp(pastp + drn);
+  } else if (pastp < obs2) {
+    if (chisq) {
+      df = (nro2 - 1) * (k1 - 1);
+      pv = 1.0 - gammds(
+          max(0.0, tmp + 2.0 * (pastp + drn)) / 2.0,
+          df / 2.0,
+          &ifault);
+      *pre += (double)ifreq *exp(pastp + drn) * pv;
+    } else {
+      // Put daughter on queue
+      int f5_ret = f5xact(
+          pastp + ddf,
+          tol,
+          &kval,
+          &key[jkey],
+          ldkey,
+          &ipoin[jkey],
+          &stp[jstp],
+          ldstp,
+          &ifrq[jstp],
+          &ifrq[jstp2],
+          &ifrq[jstp3],
+          &ifrq[jstp4],
+          ifreq,
+          &itop,
+          ipsh
+      );
+      if (f5_ret != 0) return f5_ret;
+      ipsh = 0;
+    }
+  }
+
+  // Get next PASTP on chain
+  ipn = ifrq[ipn + ikstp2];
+  if (ipn > 0) {
+    pastp = stp[ipn + ikstp];
+    ifreq = ifrq[ipn + ikstp];
+    goto L300;
+  }
+
+  // Generate a new daughter node
+  int f7_ret = f7xact(
+      kmax,
+      &iro[1],
+      &idif[1],
+      &kd,
+      &ks,
+      &iflag
+  );
+  if (f7_ret != 0) return f7_ret;
+  if (iflag != 1) goto L150;
+
+  // Go get a new mother from stage K
+L310:
+  iflag = 1;
+  int f6_ret = f6xact(
+      nro,
+      &iro[1],
+      &iflag,
+      &kyy[1],
+      &key[ikkey + 1],
+      ldkey,
+      &last,
+      &ipo
+  );
+  // Update pointers
+  if (iflag == 3) {
+    --k;
+    itop = 0;
+    ikkey = jkey - 1;
+    ikstp = jstp - 1;
+    ikstp2 = jstp2 - 1;
+    jkey = ldkey - jkey + 2;
+    jstp = ldstp - jstp + 2;
+    jstp2 = 2 * ldstp + jstp;
+    for (i = 1; i <= 2 * ldkey; ++i) {
+      key2[i] = -9999;
+    }
+    if (k >= 2) {
+      goto L310;
+    }
+  } else {
+    goto L110;
+  }
+
+  return 0;
+}
+
+int f3xact(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double* dlp,
+    int* mm, 
+    const double fact[],
+    int* ico,
+    int* iro,
+    int* it,
+    int* lb,
+    int* nr,
+    int* nt,
+    int* nu,
+    int* itc,
+    int* ist,
+    double* stv,
+    double* alen,
+    double tol) {
+  return 0;
+}
+
+int f4xact(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double dsp,
+    const double fact[],
+    int* icstk,
+    int* ncstk,
+    int* lstk,
+    int* mstk,
+    int* nstk,
+    int* nrstk,
+    int* irstk,
+    double* ystk,
+    double tol) {
+  return 0;
+}
+
+int f5xact(
+    double pastp,
+    double tol,
+    int* kval,
+    int* key,
+    int ldkey,
+    int* ipoin,
+    double* stp,
+    int ldstp,
+    int* ifrq,
+    int* npoin,
+    int* nr,
+    int* nl,
+    int ifreq,
+    int* itop,
+    int ipsh
+) {
+  return 0;
+}
+
+int f6xact(
+    int nrow,
+    const int irow[],
+    int* iflag,
+    int* kyy,
+    int* key,
+    int ldkey,
+    int* last,
+    int* ipn) {
+  *iflag = 3;
+  return 0;
+}
+
+int f7xact(
+    int nrow,
+    int* imax,
+    int* idif,
+    int* k,
+    int* ks,
+    int* iflag) {
+  *iflag = 1;
   return 0;
 }
 
@@ -531,6 +1035,27 @@ int prterr(int code, const char *message) {
 }
 
 int iwork(int iwkmax, int* iwkpt, int number, int itype) {
+/*
+c-----------------------------------------------------------------------
+  Name:       IWORK
+
+  Purpose:    Routine for allocating workspace.
+
+  Usage:      IWORK (IWKMAX, IWKPT, NUMBER, ITYPE)
+
+  Arguments:
+     IWKMAX - Maximum length of workspace.  (Input)
+     IWKPT  - Amount of workspace currently allocated.  (Input/output)
+     NUMBER - Number of elements of workspace desired.  (Input)
+     ITYPE  - Worspace type.  (Input)
+              ITYPE  TYPE
+                2    Integer
+                3    Real
+                4    Double Precision
+     IWORK  - Index in RWRK, DWRK, or IWRK of the beginning of the
+              first element in the workspace array.  (Output)
+-----------------------------------------------------------------------
+*/
   int ret = *iwkpt;
   if (itype == 2 || itype == 3) {
     *iwkpt += number;
@@ -634,6 +1159,121 @@ L40:
   i = il[m];
   j = iu[m];
   goto L10;
+}
+
+double gammds(double y, double p, int* ifault) {
+/*
+-----------------------------------------------------------------------
+  Name:       GAMMDS
+
+  Purpose:    Cumulative distribution for the gamma distribution.
+
+  Usage:      PGAMMA (Q, ALPHA,IFAULT)
+
+  Arguments:
+     Q      - Value at which the distribution is desired.  (Input)
+     ALPHA  - Parameter in the gamma distribution.  (Input)
+     IFAULT - Error indicator.  (Output)
+               IFAULT  DEFINITION
+                 0     No error
+                 1     An argument is misspecified.
+                 2     A numerical error has occurred.
+     PGAMMA - The cdf for the gamma distribution with parameter alpha
+              evaluated at Q.  (Output)
+-----------------------------------------------------------------------
+
+       Algorithm AS 147 APPL. Statist. (1980) VOL. 29, P. 113
+
+       Computes the incomplete gamma integral for positive
+       parameters Y, P using and infinite series.
+*/
+  int ifail;
+  double a, c, f;
+  double ret;
+  
+  // Checks for the admissibility of arguments and value of F
+  *ifault = 1;
+  ret = 0.0;
+  if (y <= 0.0 || p <= 0.0) return ret;
+
+  *ifault = 2;
+  
+  /*
+    ALOGAM is natural log of gamma function
+    no need to test ifail as an error is impossible
+  */
+  f = exp(p * log(y) - alogam(p + 1.0, &ifail) - y);
+  if (f == 0.0) return ret;
+  *ifault = 0;
+
+  // Series begins
+  c = 1.0;
+  ret = 1.0;
+  a = p;
+
+L10:
+  a += 1.0;
+  c = c * y / a;
+  ret += c;
+  if (c / ret > 1.0e-6) goto L10;
+  ret *= f;
+  return ret;
+}
+
+double alogam(double x, int* ifault) {
+/*
+-----------------------------------------------------------------------
+  Name:       ALOGAM
+
+  Purpose:    Value of the log-gamma function.
+
+  Usage:      ALOGAM (X, IFAULT)
+
+  Arguments:
+     X      - Value at which the log-gamma function is to be evaluated.
+              (Input)
+     IFAULT  - Error indicator.  (Output)
+               IFAULT  DEFINITION
+                 0     No error
+                 1     X .LT. 0
+     ALGAMA - The value of the log-gamma function at XX.  (Output)
+-----------------------------------------------------------------------
+
+        Algorithm ACM 291, Comm. ACM. (1966) Vol. 9, P. 684
+
+        Evaluates natural logarithm of gamma(x)
+        for X greater than zero.
+
+*/
+  double a1 = 0.918938533204673;
+  double a2 = 0.000595238095238;
+  double a3 = 0.000793650793651;
+  double a4 = 0.002777777777778;
+  double a5 = 0.083333333333333;
+
+  double f, y, z;
+  double ret = 0.0;
+
+  *ifault = 1;
+  if (x < 0.0) return ret;
+  *ifault = 0;
+
+  y = x;
+  f = 0.0;
+  if (y >= 7.0) goto L30;
+  f = y;
+L10:
+  y += 1.0;
+  if (y >= 7.0) goto L20;
+  f = f * y;
+  goto L10;
+
+L20:
+  f = -log(f);
+L30:
+  z = 1.0 / (y * y);
+  ret = f + (y - 0.5) * log(y) - y + a1 + (((-a2 * z + a3) * z - a4) * z + a5) / y;
+  return ret;
 }
 
 void test_func2(const int table[], int ldtabl) {
