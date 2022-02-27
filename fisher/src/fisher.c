@@ -41,7 +41,6 @@ int f2xact(
     int* key2,
     int* iwk,
     double* rwk);
-
 int f3xact(
     int nrow,
     const int irow[],
@@ -62,7 +61,6 @@ int f3xact(
     double* stv,
     double* alen,
     double tol);
-
 int f4xact(
     int nrow,
     const int irow[],
@@ -79,7 +77,6 @@ int f4xact(
     int* irstk,
     double* ystk,
     double tol);
-
 int f5xact(
     double pastp,
     double tol,
@@ -96,7 +93,6 @@ int f5xact(
     int ifreq,
     int* itop,
     int ipsh);
-
 int f6xact(
     int nrow,
     const int irow[],
@@ -106,7 +102,6 @@ int f6xact(
     int ldkey,
     int* last,
     int* ipn);
-
 int f7xact(
     int nrow,
     int* imax,
@@ -114,10 +109,8 @@ int f7xact(
     int* k,
     int* ks,
     int* iflag);
-
-
+void f8xact(const int irow[], int is, int i1, int izero, int* new);
 double f9xact(int n, int ntot, const int ir[], const double fact[]);
-
 void f10act(
     int nrow,
     const int irow[],
@@ -129,6 +122,8 @@ void f10act(
     int* nd,
     int* ne,
     int* m);
+
+void f11act(const int irow[], int i1, int i2, int* new);
 
 int prterr(int code, const char* message);
 int iwork(int iwkmax, int* iwkpt, int number, int itype);
@@ -1378,6 +1373,208 @@ int f4xact(
     int* irstk,
     double* ystk,
     double tol) {
+/*
+-----------------------------------------------------------------------
+  Name:       F4XACT
+
+  Purpose:    Computes the longest path length for a given table.
+
+  Usage:      CALL F4XACT (NROW, IROW, NCOL, ICOL, DSP, FACT, ICSTK,
+                          NCSTK, LSTK, MSTK, NSTK, NRSTK, IRSTK, YSTK,
+                          TOL)
+
+  Arguments:
+     NROW   - The number of rows in the table.  (Input)
+     IROW   - Vector of length NROW containing the row sums for the
+              table.  (Input)
+     NCOL   - The number of columns in the table.  (Input)
+     ICOL   - Vector of length K containing the column sums for the
+              table.  (Input)
+     DSP    - The shortest path for the table.  (Output)
+     FACT   - Vector containing the logarithms of factorials.  (Input)
+     ICSTK  - NCOL by NROW+NCOL+1 work array.
+     NCSTK  - Work vector of length NROW+NCOL+1.
+     LSTK   - Work vector of length NROW+NCOL+1.
+     MSTK   - Work vector of length NROW+NCOL+1.
+     NSTK   - Work vector of length NROW+NCOL+1.
+     NRSTK  - Work vector of length NROW+NCOL+1.
+     IRSTK  - NROW by MAX(NROW,NCOL) work array.
+     YSTK   - Work vector of length NROW+NCOL+1.
+     TOL    - Tolerance.  (Input)
+-----------------------------------------------------------------------
+*/
+  int i, ic1, ict, ir1, irt, istk, j, k, l, m, mn, n, nco, nro;
+  double amx, y;
+
+  // Do this for index to start from 1 (to match code with Fortran)
+  --irow; --icol;
+  icstk -= ncol + 1;
+  --ncstk; --lstk; --mstk; --nstk; --nrstk;
+  irstk -= nrow + 1;
+  --ystk;
+
+#define get_irstk(i, j) irstk[i + j * nrow]
+#define get_icstk(i, j) icstk[i + j * ncol]
+
+  // Take care of the easy cases firstkt
+  if (nrow == 1) {
+    for (i = 1; i <= ncol; ++i) {
+      dsp -= fact[icol[i]];
+    }
+    goto L9000;
+  }
+
+  if (ncol == 1) {
+    for (i = 1; i <= nrow; ++i) {
+      dsp -= fact[irow[i]];
+    }
+    goto L9000;
+  }
+
+  if (nrow * ncol == 4) {
+    if (irow[2] <= icol[2]) {
+      dsp -= fact[irow[2]] - fact[icol[1]] - fact[icol[2] - irow[2]];
+    } else {
+      dsp -= fact[icol[2]] - fact[irow[1]] - fact[irow[2] - icol[2]];
+    }
+    goto L9000;
+  }
+
+  // initialization before loop
+  for (i = 1; i <= nrow; ++i) {
+    get_irstk(i, 1) = irow[nrow - 1 + 1];
+  }
+  for (j = 1; j <= ncol; ++j) {
+    get_icstk(j, 1) = icol[ncol - j + 1];
+  }
+
+  nro = nrow;
+  nco = ncol;
+  nrstk[1] = nro;
+  ncstk[1] = nco;
+  ystk[1] = 0.0;
+  y = 0.0;
+  istk = 1;
+  l = 1;
+  amx = 0.0;
+
+L50:
+  ir1 = get_irstk(1, istk);
+  ic1 = get_icstk(1, istk);
+  if (ir1 > ic1) {
+    if (nro >= nco) {
+      m = nco - 1;
+      n = 2;
+    } else {
+      m = nro;
+      n = 1;
+    }
+  } else if (ir1 < ic1) {
+    if (nro <= nco) {
+      m = nro - 1;
+      n = 1;
+    } else {
+      m = nco;
+      n = 2;
+    }
+  } else {
+    if (nro <= nco) {
+      m = nro - 1;
+      n = 1;
+    } else {
+      m = nco - 1;
+      n = 2;
+    }
+  }
+
+L60:
+  if (n == 1) {
+    i = l;
+    j = 1;
+  } else {
+    i = 1;
+    j = l;
+  }
+
+  irt = get_irstk(i, istk);
+  ict = get_icstk(j, istk);
+  mn = irt;
+  if (mn > ict) mn = ict;
+  y += fact[mn];
+  if (irt == ict) {
+    --nro;
+    --nco;
+    f11act(&get_irstk(1, istk), i, nro, &get_irstk(1, istk + 1));
+    f11act(&get_icstk(1, istk), j, nco, &get_icstk(1, istk + 1));
+  } else if (irt > ict) {
+    --nco;
+    f11act(&get_icstk(1, istk), j,  nco, &get_icstk(1, istk + 1));
+    f8xact(&get_irstk(1, istk), irt - ict, i, nro, &get_irstk(1, istk + 1));
+  } else {
+    --nro;
+    f11act(&get_irstk(1, istk), i, nro, &get_irstk(1, istk + 1));
+    f8xact(&get_icstk(1, istk), ict - irt, j, nco, &get_icstk(1, istk + 1));
+  }
+
+  if (nro == 1) {
+    for (k = 1; k <= nco; ++i) {
+      y += fact[get_icstk(k, istk + 1)];
+    }
+    goto L90;
+  }
+
+  if (nco == 1) {
+    for (k = 1; k <= nro; ++k) {
+      y += fact[get_irstk(k, istk + 1)];
+    }
+    goto L90;
+  }
+
+  lstk[istk] = l;
+  mstk[istk] = m;
+  nstk[istk] = n;
+  ++istk;
+  nrstk[istk] = nro;
+  ncstk[istk] = nco;
+  ystk[istk] = y;
+  l = 1;
+  goto L50;
+
+L90:
+  if (y > amx) {
+    amx = y;
+    if (dsp - amx <= tol) {
+      dsp = 0.0;
+      goto L9000;
+    }
+  }
+
+L100:
+  --istk;
+  if (istk == 0) {
+    dsp -= amx;
+    if (dsp - amx <= tol) dsp = 0.0;
+    goto L9000;
+  }
+  l = lstk[istk] + 1;
+
+L110:
+  if (l > mstk[istk]) goto L100;
+  n = nstk[istk];
+  nro = nrstk[istk];
+  nco = ncstk[istk];
+  y = ystk[istk];
+  if (n == 1) {
+    if (get_irstk(l, istk) < get_irstk(l - 1, istk)) goto L60;
+  } else if (n == 2) {
+    if (get_icstk(l, istk) < get_icstk(l - 1, istk)) goto L60;
+  }
+
+  ++l;
+  goto L110;
+
+L9000:
+
   return 0;
 }
 
@@ -1423,6 +1620,46 @@ int f7xact(
     int* iflag) {
   *iflag = 1;
   return 0;
+}
+
+void f8xact(const int irow[], int is, int i1, int izero, int* new) {
+/*
+-----------------------------------------------------------------------
+  Name:       F8XACT
+
+  Purpose:    Routine for reducing a vector when there is a zero
+              element.
+
+  Usage:      CALL F8XACT (IROW, IS, I1, IZERO, NEW)
+
+  Arguments:
+     IROW   - Vector containing the row counts.  (Input)
+     IS     - Indicator.  (Input)
+     I1     - Indicator.  (Input)
+     IZERO  - Position of the zero.  (Input)
+     NEW    - Vector of new row counts.  (Output)
+-----------------------------------------------------------------------
+*/
+  --irow; --new;
+  int i;
+  for (i = 1; i <= i1 - 1; ++i) {
+    new[i] = irow[i];
+  }
+  for (i = i1; i <= izero - 1; ++i) {
+    if (is >= irow[i + 1]) goto L30;
+    new[i] = irow[i + 1];
+  }
+
+  i = izero;
+
+L30:
+  new[i] = is;
+
+L40:
+  ++i;
+  if (i > izero) return;
+  new[i] = irow[i];
+  goto L40;
 }
 
 double f9xact(int n, int ntot, const int ir[], const double fact[]) {
@@ -1508,6 +1745,33 @@ void f10act(
     *val += is * fact[ix + 1] + (nrow - is) * fact[ix];
   }
   *xmin = true;
+}
+
+void f11act(const int irow[], int i1, int i2, int* new) {
+/*
+-----------------------------------------------------------------------
+  Name:       F11ACT
+
+  Purpose:    Routine for revising row totals.
+
+  Usage:      CALL F11ACT (IROW, I1, I2, NEW)
+
+  Arguments:
+     IROW   - Vector containing the row totals.  (Input)
+     I1     - Indicator.  (Input)
+     I2     - Indicator.  (Input)
+     NEW    - Vector containing the row totals.  (Input)
+-----------------------------------------------------------------------
+*/
+  --irow; --new;
+  int i;
+  for (i = 1; i <= i1 - 1; ++i) {
+    new[i] = irow[i];
+  }
+
+  for (i = i1; i <= i2; ++i) {
+    new[i] = irow[i + 1];
+  }
 }
 
 int prterr(int code, const char *message) {
