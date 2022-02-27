@@ -14,8 +14,8 @@ lib_path = os.path.join(os.getcwd(), "fisher", "src", "fisher.so")
 fisher = ctypes.cdll.LoadLibrary(lib_path)
 
 ary = np.array([
-    [100, 3, 100, 204, 404],
-    [3, 5, 1, 3, 5]
+    [1, 3, 1, 4],
+    [3, 5, 1, 3]
 ])
 
 nrow, ncol = ary.shape

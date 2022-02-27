@@ -118,6 +118,18 @@ int f7xact(
 
 double f9xact(int n, int ntot, const int ir[], const double fact[]);
 
+void f10act(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double* val,
+    int* xmin,
+    const double fact[],
+    int* nd,
+    int* ne,
+    int* m);
+
 int prterr(int code, const char* message);
 int iwork(int iwkmax, int* iwkpt, int number, int itype);
 void isort(int n, int* ix);
@@ -959,6 +971,394 @@ int f3xact(
     double* stv,
     double* alen,
     double tol) {
+/*
+-----------------------------------------------------------------------
+  Name:       F3XACT
+
+  Purpose:    Computes the shortest path length for a given table.
+
+  Usage:      CALL F3XACT (NROW, IROW, NCOL, ICOL, DLP, MM, FACT, ICO,
+                          IRO, IT, LB, NR, NT, NU, ITC, IST, STV, ALEN,
+                          TOL)
+
+  Arguments:
+     NROW   - The number of rows in the table.  (Input)
+     IROW   - Vector of length NROW containing the row sums for the
+              table.  (Input)
+     NCOL   - The number of columns in the table.  (Input)
+     ICOL   - Vector of length K containing the column sums for the
+              table.  (Input)
+     DLP    - The longest path for the table.  (Output)
+     MM     - The total count in the table.  (Output)
+     FACT   - Vector containing the logarithms of factorials.  (Input)
+     ICO    - Work vector of length MAX(NROW,NCOL).
+     IRO    - Work vector of length MAX(NROW,NCOL).
+     IT     - Work vector of length MAX(NROW,NCOL).
+     LB     - Work vector of length MAX(NROW,NCOL).
+     NR     - Work vector of length MAX(NROW,NCOL).
+     NT     - Work vector of length MAX(NROW,NCOL).
+     NU     - Work vector of length MAX(NROW,NCOL).
+     ITC    - Work vector of length 400.
+     IST    - Work vector of length 400.
+     STV    - Work vector of length 400.
+     ALEN   - Work vector of length MAX(NROW,NCOL).
+     TOL    - Tolerance.  (Input)
+-----------------------------------------------------------------------
+*/
+  int i, ic1, ic2, ii, ipn, irl, itp, k, key, ks, kyy, lev;
+  int n11, n12, nc1, nc1s, nco, nct, nn, nn1, nr1, nro, nrt;
+  double v, val, vmn;
+  int xmin;
+
+  const int ldst = 200;
+  int nst = 0;
+  int nitc = 0;
+
+  // Do this for index to start from 1 (to match code with Fortran)
+  // fact, alen are excluded, (starts from 0)
+  --irow; --icol;
+  --ico; --iro; --it; --lb; --nr; --nt; --nu; --itc; --ist;
+  --stv;
+
+  for (i = 0; i <= ncol; ++i) {
+    alen[i] = 0.0;
+  }
+  for (i = 1; i <= 400; ++i) {
+    ist[i] = -1;
+  }
+
+  // nrow is 1
+  if (nrow <= 1) {
+    if (nrow > 0) {
+      *dlp -= fact[icol[1]];
+      for (i = 2; i <= ncol; ++i) {
+        *dlp -= fact[icol[i]];
+      }
+    }
+    goto L9000;
+  }
+
+  // ncol is 1
+  if (ncol <= 1) {
+    if (ncol > 0) {
+      *dlp -= fact[irow[1]] - fact[irow[2]];
+      for (i = 3; i <= nrow; ++i) {
+        *dlp -= fact[irow[i]];
+      }
+    }
+    goto L9000;
+  }
+
+  // 2 by 2 table
+  if (nrow * ncol == 4) {
+    n11 = (irow[1] + 1) * (icol[1] + 1) /  (*mm + 2);
+    n12 = irow[1] - n11;
+    *dlp -= fact[n11] - fact[n12] - fact[icol[1] - n11] - fact[icol[2]-n12];
+    goto L9000;
+  }
+
+  // Test for optimal table
+  val = 0.0;
+  xmin = 0;
+  if (irow[nrow] <= irow[1] + ncol) {
+    f10act(
+        nrow,
+        &irow[1],
+        ncol,
+        &icol[1],
+        &val,
+        &xmin,
+        fact,
+        &lb[1],
+        &nu[1],
+        &nr[1]
+    );
+  }
+  if (xmin == 0) {
+    if (icol[ncol] <= icol[1] + nrow) {
+      f10act(
+          ncol,
+          &icol[1],
+          nrow,
+          &irow[1],
+          &val,
+          &xmin,
+          fact,
+          &lb[1],
+          &nu[1],
+          &nr[1]
+      );
+    }
+  }
+
+  if (xmin) {
+    *dlp -= val;
+    goto L9000;
+  }
+
+  // Setup for dynamic programming
+  nn = *mm;
+
+  // Minimize ncol
+  if (nrow >= ncol) {
+    nro = nrow;
+    nco = ncol;
+    for (i = 1; i <= nrow; ++i) {
+      iro[i] = irow[i];
+    }
+
+    ico[1] = icol[1];
+    nt[1] = nn - ico[1];
+    for (i = 2; i <= ncol; ++i) {
+      ico[i] = icol[i];
+      nt[i] = nt[i - 1] - ico[i];
+    }
+  } else {
+    nro = ncol;
+    nco = nrow;
+
+    ico[1] = irow[1];
+    nt[1] = nn - ico[1];
+    for (i = 2; i <= nrow; ++i) {
+      ico[i] = irow[i];
+      nt[i] = nt[i - 1] - ico[i];
+    }
+
+    for (i =1; i <= ncol; ++i) {
+      iro[i] = icol[i];
+    }
+  }
+
+  // Initialize pointers
+  vmn = 1.0e-10;
+  nc1s = nco - 1;
+  irl = 1;
+  ks = 0;
+  k = ldst;
+  kyy = ico[nco] + 1;
+  goto L100;
+
+  // Test for optimality
+L90:
+  xmin = 0;
+  if (iro[nro] <= iro[irl] + nco) {
+    f10act(
+        nro,
+        &iro[irl],
+        nco,
+        &ico[1],
+        &val,
+        &xmin,
+        fact,
+        &lb[1],
+        &nu[1],
+        &nr[1]
+    );
+  }
+  if (xmin == 0) {
+    if (ico[nco] <= ico[1] + nro) {
+      f10act(
+          nco,
+          &ico[1],
+          nro,
+          &iro[irl],
+          &val,
+          &xmin,
+          fact,
+          &lb[1],
+          &nu[1],
+          &nr[1]
+      );
+    }
+  }
+
+  if (xmin == 1) {
+    if (val < vmn) vmn = val;
+    goto L200;
+  }
+
+L100:
+  // Setup to generate new node
+  lev = 1;
+  nr1 = nro - 1;
+  nrt = iro[irl];
+  nct = ico[1];
+  lb[1] = (int)((double)((nrt + 1) * (nct + 1)) / (double)(nn + nr1 * nc1s + 1) - tol) - 1;
+  nu[1] = (int)((double)((nrt + nc1s) * (nct + nr1)) / (double)(nn + nr1 + nc1s)) - lb[1] + 1;
+  nr[1] = nrt - lb[1];
+
+L110:
+  // Generate a node
+  --nu[lev];
+  if (nu[lev] == 0) {
+    if (lev  == 1) goto L200;
+    --lev;
+    goto L110;
+  }
+  ++lb[lev];
+  --nr[lev];
+
+L120:
+  alen[lev] = alen[lev - 1] + fact[lb[lev]];
+  if (lev < nc1s) {
+    nn1 = nt[lev];
+    nrt = nr[lev];
+    ++lev;
+    nc1 = nco - lev;
+    nct = ico[lev];
+    lb[lev] = (double)((nrt + 1) * (nct + 1)) / (double)(nn1 + nr1 * nc1 + 1) - tol;
+    nu[lev] = (double)((nrt + nc1) * (nct + nr1)) / (double)(nn1 + nr1 + nc1) - lb[lev] + 1;
+    nr[lev] = nrt - lb[lev];
+    goto L120;
+  }
+  alen[nco] = alen[lev] = fact[nr[lev]];
+  lb[nco] = nr[lev];
+
+  v = val + alen[nco];
+  if (nro == 2) {
+    // Only 1 row left;
+    v += fact[ico[1] - lb[1]] + fact[ico[2] - lb[2]];
+    for (i = 3; i <= nco; ++i) {
+      v += fact[ico[i] - lb[i]];
+    }
+    if (v < vmn) vmn = v;
+  } else if (nro == 3 && nco == 2) {
+    // 3 rows and 2 columns
+    nn1 = nn - iro[irl] + 2;
+    ic1 = ico[1] - lb[1];
+    ic2 = ico[2] - lb[2];
+    n11 = (iro[irl + 1] + 1) * (ic1 + 1) / nn1;
+    n12 = iro[irl + 1] - n11;
+    v += fact[n11] + fact[n12] + fact[ic1 - n11] + fact[ic2 - n12];
+    if (v < vmn) vmn = v;
+  } else {
+    // Column marginals are new node
+    for (i = 1; i <= nco; ++i) {
+      it[i] = ico[i] - lb[i];
+    }
+
+    // Sort column marginals
+    if (nco == 2) {
+      if (it[1] > it[2]) {
+        ii = it[1];
+        it[1] = it[2];
+        it[2] = ii;
+      }
+    }
+    else if (nco == 3) {
+      ii = it[1];
+      if (ii > it[3]) {
+        if (ii > it[2]) {
+          if (it[2] > it[3])  {
+            it[1] = it[3];
+            it[3] = ii;
+          } else {
+            it[1] = it[2];
+            it[2] = it[3];
+            it[3] = ii;
+          }
+        } else {
+          it[1] = it[3];
+          it[3] = it[2];
+          it[2] = ii;
+        }
+      } else if (ii > it[2]) {
+        it[1] = it[2];
+        it[2] = ii;
+      } else if (it[2] > it[3]) {
+        ii = it[2];
+        it[2] = it[3];
+        it[3] = ii;
+      }
+    } else {
+      isort(nco, &it[1]);
+    }
+
+    // Compute hash value
+    key = it[1] * kyy + it[2];
+    for (i = 3; i <= nco; ++i) {
+      key = it[i] + key * kyy;
+    }
+
+    // Table index
+    ipn = key % ldst + 1;
+
+    // Find empty position
+    ii = ks + ipn;
+    for (itp=ipn; itp <= ldst; ++itp) {
+      if (ist[ii] < 0) {
+        goto L180;
+      } else if (ist[ii] == key) {
+        goto L190;
+      }
+      ++ii;
+    }
+
+    ii = ks + 1;
+    for (itp = 1; itp <= ipn - 1; ++itp) {
+      if (ist[ii] < 0) {
+        goto L180;
+      } else if (ist[ii] == key) {
+        goto L190;
+      }
+      ++ii;
+    }
+
+    return prterr(30, "Stack length exceed in f3xact. This problem should not occur.");
+
+L180:
+    // Push onto tack
+    ist[ii] = key;
+    stv[ii] = v;
+    ++nst;
+    ii = nst + ks;
+    itc[ii] = itp;
+    goto L110;
+
+L190:
+    // Marginals already on stack
+    stv[ii] = min(v, stv[ii]);
+  }
+  goto L110;
+
+L200:
+  // Pop item from stack
+  if (nitc > 0) {
+    // Stack index
+    itp = itc[nitc + k] + k;
+    --nitc;
+    val = stv[itp];
+    key = ist[itp];
+    ist[itp] = -1;
+
+    // Compute marginals
+    for (i = nco; i >= 2; --i) {
+      ico[i] = key % kyy;
+      key /= kyy;
+    }
+    ico[1] = key;
+    // Set up nt array
+    nt[1] = nn - ico[1];
+    for (i = 2; i <= nco; ++i) {
+      nt[i] = nt[i - 1] - ico[i];
+    }
+    goto L90;
+  } else if (nro > 2 && nst > 0) {
+    // Go to next level
+    nitc = nst;
+    nst = 0;
+    k = ks;
+    ks = ldst - ks;
+    nn -= iro[irl];
+    ++irl;
+    --nro;
+    goto L200;
+  }
+
+  *dlp -= vmn;
+
+L9000:
+
   return 0;
 }
 
@@ -1027,6 +1427,87 @@ int f7xact(
 
 double f9xact(int n, int ntot, const int ir[], const double fact[]) {
   return 123.456;
+}
+
+void f10act(
+    int nrow,
+    const int irow[],
+    int ncol,
+    const int icol[],
+    double* val,
+    int* xmin,
+    const double fact[],
+    int* nd,
+    int* ne,
+    int* m) {
+/*
+-----------------------------------------------------------------------
+  Name:       F10ACT
+
+  Purpose:    Computes the shortest path length for special tables.
+
+  Usage:      CALL F10ACT (NROW, IROW, NCOL, ICOL, VAL, XMIN, FACT, ND,
+                          NE, M)
+
+  Arguments:
+     NROW   - The number of rows in the table.  (Input)
+     IROW   - Vector of length NROW containing the row totals.  (Input)
+     NCOL   - The number of columns in the table.  (Input)
+     ICO    - Vector of length NCOL containing the column totals.
+              (Input)
+     VAL    - The shortest path.  (Output)
+     XMIN   - Set to true if shortest path obtained.  (Output)
+     FACT   - Vector containing the logarithms of factorials.
+              (Input)
+     ND     - Workspace vector of length NROW.
+     NE     - Workspace vector of length NCOL.
+     M      - Workspace vector of length NCOL.
+
+  Chapter:    STAT/LIBRARY Categorical and Discrete Data Analysis
+-----------------------------------------------------------------------
+*/
+  int i, is, ix, nrw1;
+
+  // Do this for index to start from 1 (to match code with Fortran)
+  --irow; --icol;
+  --nd; --ne; --m;
+
+  for (i = 1; i <= nrow - 1; ++i) {
+    nd[i] = 0;
+  }
+
+  is = icol[1] / nrow;
+  ne[1] = is;
+  ix = icol[1] - nrow * is;
+  m[1] = ix;
+  if (ix != 0) ++nd[ix];
+
+  for (i = 2; i <= ncol; ++i) {
+    ix = icol[i] / nrow;
+    ne[i] = ix;
+    is += ix;
+    ix = icol[i] - nrow * ix;
+    m[i] = ix;
+    if (ix != 0) ++nd[ix];
+  }
+
+  for (i = nrow - 2; i >= 1; --i) {
+    nd[i] += nd[i+1];
+  }
+
+  ix = 0;
+  nrw1 = nrow + 1;
+  for (i = nrow; i >= 2; --i) {
+    ix += is + nd[nrw1 - i] - irow[i];
+    if (ix < 0) return;
+  }
+
+  for (i = 1; i <= ncol; ++i) {
+    ix = ne[i];
+    is = m[i];
+    *val += is * fact[ix + 1] + (nrow - is) * fact[ix];
+  }
+  *xmin = true;
 }
 
 int prterr(int code, const char *message) {
