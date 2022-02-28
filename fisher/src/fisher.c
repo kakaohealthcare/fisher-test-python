@@ -93,9 +93,9 @@ int f5xact(
     int ifreq,
     int* itop,
     int ipsh);
-int f6xact(
+void f6xact(
     int nrow,
-    const int irow[],
+    int* irow,
     int* iflag,
     int* kyy,
     int* key,
@@ -913,7 +913,7 @@ L300:
   // Go get a new mother from stage K
 L310:
   iflag = 1;
-  int f6_ret = f6xact(
+  f6xact(
       nro,
       &iro[1],
       &iflag,
@@ -1744,17 +1744,61 @@ L9000:
   return 0;
 }
 
-int f6xact(
+void f6xact(
     int nrow,
-    const int irow[],
+    int* irow,
     int* iflag,
     int* kyy,
     int* key,
     int ldkey,
     int* last,
     int* ipn) {
-  *iflag = 3;
-  return 0;
+/*
+-----------------------------------------------------------------------
+  Name:       F6XACT
+
+  Purpose:    Pop a node off the stack.
+
+  Usage:      CALL F6XACT (NROW, IROW, IFLAG, KYY, KEY, LDKEY, LAST,
+                          IPN)
+
+  Arguments:
+     NROW   - The number of rows in the table.  (Input)
+     IROW   - Vector of length nrow containing the row sums on output.
+              (Output)
+     IFLAG  - Set to 3 if there are no additional nodes to process.
+              (Output)
+     KYY    - Constant mutlipliers used in forming the hash table key.
+              (Input)
+     KEY    - Vector of length LDKEY containing the hash table keys.
+              (Input/output)
+     LDKEY  - Length of vector KEY.  (Input)
+     LAST   - Index of the last key popped off the stack.
+              (Input/output)
+     IPN    - Pointer to the linked list of past path lengths.
+              (Output)
+-----------------------------------------------------------------------
+*/
+  --irow; --key; --kyy;
+  int j, kval;
+
+L10:
+  ++(*last);
+  if (*last <= ldkey) {
+    if (key[*last] < 0) goto L10;
+    // Get KVAL from the stack
+    kval = key[*last];
+    key[*last] = -9999;
+    for (j = nrow; j >= 2; --j) {
+      irow[j] = kval / kyy[j];
+      kval -= irow[j] * kyy[j];
+    }
+    irow[1] = kval;
+    *ipn = *last;
+  } else {
+    *last = 0;
+    *iflag = 3;
+  }
 }
 
 int f7xact(
