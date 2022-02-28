@@ -9,8 +9,8 @@ By jungwoo@linewalks.com
 #include <stdio.h>
 #include <stdlib.h>
 
-#define max(x, y) x > y ? x : y
-#define min(x, y) x < y ? x : y
+#define max(x, y) ((x) > (y) ? (x) : (y))
+#define min(x, y) ((x) < (y) ? (x) : (y))
 
 
 int f2xact(
@@ -61,7 +61,7 @@ int f3xact(
     double* stv,
     double* alen,
     double tol);
-int f4xact(
+void f4xact(
     int nrow,
     const int irow[],
     int ncol,
@@ -228,12 +228,10 @@ int fexact(
 -----------------------------------------------------------------------
 */
 
-  /*
-    AMISS is a missing value indicator
-    which is returned when the
-    probability is not defined.
-  */
-  const double amiss = -12345.;
+  int i, i1, i10, i2, i3, i3a, i3b, i3c, i4, i5, i6, i7, \
+      i8, i9, i9a, iiwk, ireal, irwk, iwkmax, iwkpt, \
+      j, k, kk, ldkey, ldstp, nco, nro, \
+      ntot, numb;
 
   /* Original comment was
     "
@@ -243,10 +241,10 @@ int fexact(
 
     but, will fix IREAL to 4
   */
-  const int ireal = 4;
+  ireal = 4;
 
   // iwkmax(workspace) must be even
-  int iwkmax = 2 * (int)(workspace / 2);
+  iwkmax = 2 * (int)(workspace / 2);
 
   // create iwkmax * 4 = iwkmax / 2 * 8 bytes size workspace
   double* equivalence = (double*)malloc(iwkmax / 2 * sizeof(double));
@@ -255,15 +253,13 @@ int fexact(
 #define iwrk(i) ((int*)equivalence) + i - 1
 #define rwrk(i) ((float*)equivalence) + i - 1
 
-  int iwkpt = 1;
+  iwkpt = 1;
 
   if (nrow > ldtabl) {
     return prterr(1, "NROW must be less than or equal to LDTABL.");
   }
 
-  int i, j;
-  int ntot = 0;
-
+  ntot = 0;
   for (i = 0; i < nrow; ++i) {
     for (j = 0; j < ncol; ++j) {
       if (table[j + i * ldtabl] < 0) {
@@ -276,16 +272,14 @@ int fexact(
     return prterr(3, "All elements of TABLE are zero.");
   }
 
-  int nco = max(nrow, ncol);
-  int nro = nrow + ncol - nco;
-  int k = nrow + ncol + 1;
-  int kk = k * nco;
+  nco = max(nrow, ncol);
+  nro = nrow + ncol - nco;
+  k = nrow + ncol + 1;
+  kk = k * nco;
 
 #define call_iwork(var, iwkmax, iwkpt, number, type) \
   var = iwork(iwkmax, &iwkpt, number, type); \
   if (var < 0) { return prterr(40, "Out of workspace."); }
-
-  int i1, i2, i3, i3a, i3b, i3c, iiwk, irwk;
 
   call_iwork(i1, iwkmax, iwkpt, ntot + 1, ireal)
   call_iwork(i2, iwkmax, iwkpt, nco, 2)
@@ -293,15 +287,13 @@ int fexact(
   call_iwork(i3a, iwkmax, iwkpt, nco, 2)
   call_iwork(i3b, iwkmax, iwkpt, nro, 2)
   call_iwork(i3c, iwkmax, iwkpt, nro, 2)
-  call_iwork(iiwk, iwkmax, iwkpt, max(5 * k + 2 * kk, 800 + 7 * (max(nrow, ncol))), 2)
-  call_iwork(irwk, iwkmax, iwkpt, max(400 + (max(nrow, ncol)) + 1, k), ireal)
+  call_iwork(iiwk, iwkmax, iwkpt, max(5 * k + 2 * kk, 800 + 7 * max(nrow, ncol)), 2)
+  call_iwork(irwk, iwkmax, iwkpt, max(400 + max(nrow, ncol) + 1, k), ireal)
 
-  int numb = 18 + 10 * mult;
-  int ldkey = (iwkmax - iwkpt + 1) / numb;
+  numb = 18 + 10 * mult;
+  ldkey = (iwkmax - iwkpt + 1) / numb;
 
-  int ldstp = mult * ldkey;
-
-  int i4, i5, i6, i7, i8, i9, i9a, i10;
+  ldstp = mult * ldkey;
 
   call_iwork(i4, iwkmax, iwkpt, 2 * ldkey, 2)
   call_iwork(i5, iwkmax, iwkpt, 2 * ldkey, 2)
@@ -341,10 +333,10 @@ int fexact(
       iwrk(iiwk),
       dwrk(irwk)
   );
+
   free(equivalence);
   return ret;
 }
-
 
 int f2xact(
     int nrow,
@@ -402,7 +394,6 @@ int f2xact(
       nrb, nro, nro2, ntot, ifault, imax;
   double dd, ddf, df, drn, dro, dspt, emn, obs, obs2, \
          obs3, pastp, pv, tmp, tol;
-
   int chisq, ipsh;
 
     /*
@@ -422,7 +413,7 @@ int f2xact(
   const double emx = 1.0e30;
 
   // Initialize KEY array
-  for (i = 1; i <= ldkey * 2; ++i) {
+  for (i = 1; i <= 2 * ldkey; ++i) {
     key[i] = -9999;
     key2[i] = -9999;
   }
@@ -470,7 +461,7 @@ int f2xact(
     return prterr(4, "NCOL must be greater than 1.0.");
   }
 
-#define get_table(i, j) table[j + i * ldtabl]
+#define get_table(i, j) table[(j) + (i) * ldtabl]
 
   // Compute row marginals and total
   ntot = 0;
@@ -508,9 +499,7 @@ int f2xact(
     // Interchange row and column marginals
     for (i = 1; i <= nrow; ++i) {
       itmp = iro[i];
-      if (i <= ncol) {
-        iro[i] = ico[i];
-      }
+      if (i <= ncol) iro[i] = ico[i];
       ico[i] = itmp;
     }
   } else {
@@ -535,7 +524,6 @@ int f2xact(
 
   // Maximum product
   if (iro[nro - 1] + 1 < imax / kyy[nro - 1]) {
-    // TODO not using kmax maybe?
     kmax = (iro[nro] + 1) * kyy[nro - 1];
   } else {
     return prterr(5, "The hash table key cannot be computed \
@@ -563,11 +551,11 @@ int f2xact(
     dd = 0.0;
     for (i = 1; i <= nro; ++i) {
       if (nrow <= ncol) {
-        dd = dd + fact[get_table(i, j)];
-        ntot = ntot + get_table(i, j);
+        dd += fact[get_table(i, j)];
+        ntot += get_table(i, j);
       } else {
-        dd = dd + fact[get_table(j, i)];
-        ntot = ntot + get_table(j, i);
+        dd += fact[get_table(j, i)];
+        ntot += get_table(j, i);
       }
     }
     obs = obs + fact[ico[j]] - dd;
@@ -589,10 +577,10 @@ int f2xact(
   ikstp = 0;
   ikstp2 = 2 * ldstp;
   ipo = 1;
-  ipoin[0] = 1;
-  stp[0] = 0.0;
-  ifrq[0] = 1;
-  ifrq[ikstp2] = -1;
+  ipoin[1] = 1;
+  stp[1] = 0.0;
+  ifrq[1] = 1;
+  ifrq[ikstp2 + 1] = -1;
 
 L110:
   kb = nco - k + 1;
@@ -611,8 +599,8 @@ L130:
   --kd;
   ntot = min(n, iro[kd]);
   idif[kd] = ntot;
-  if (idif[kmax] == 0) kmax = kmax - 1;
-  n = n - ntot;
+  if (idif[kmax] == 0) --kmax;
+  n -= ntot;
   if (n > 0 && kd != 1) goto L130;
   if (n != 0) goto L310;
 
@@ -620,11 +608,11 @@ L130:
   n = ico[kb];
   ntot = 0;
   for (i = kb + 1; i <= nco; ++i) {
-    ntot = ntot + ico[i];
+    ntot += ico[i];
   }
 
-  // Arc to daughter length=ICO(KB)
 L150:
+  // Arc to daughter length=ICO(KB)
   for (i = 1; i <= nro; ++i) {
     irn[i] = iro[i] - idif[i];
   }
@@ -678,9 +666,10 @@ L170:
     // Adjust start for zero
     for (i = 1; i <= nro; ++i) {
       if (irn[i] != 0) {
-        break;
+        goto L200;
       }
     }
+L200:
     nrb = i;
     nro2 = nro - i + 1;
   } else {
@@ -745,7 +734,7 @@ L240:
   if (k1 > 1) {
     obs2 = obs - fact[ico[kb + 1]] - fact[ico[kb + 2]] - ddf;
     for (i = 3; i <= k1; ++i) {
-      obs2 = obs2 - fact[ico[kb + i]];
+      obs2 -= fact[ico[kb + i]];
     }
 
     if (dlp[itp] > 0.0) {
@@ -780,7 +769,7 @@ L240:
 
       // Compute shortest path
       dsp[itp] = dspt;
-      int f4_ret = f4xact(
+      f4xact(
           nro2,
           &irn[nrb],
           k1,
@@ -814,7 +803,7 @@ L240:
           for (i = 1; i <= nro2; ++i) {
             tmp += fact[irn[nrb + i - 1]] - fact[irn[nrb + i - 1] - 1];
           }
-          tmp = tmp * (k1 - 1);
+          tmp *= (k1 - 1);
           for (j= 1; j <= k1; ++j) {
             tmp += (nro2 - 1) * (fact[ico[kb + j]] - fact[ico[kb + j] - 1]);
           }
@@ -891,7 +880,6 @@ L300:
   }
 
   // Generate a new daughter node
-  static int f7cnt = 0;
   f7xact(
       kmax,
       &iro[1],
@@ -900,10 +888,10 @@ L300:
       &ks,
       &iflag
   );
-  ++f7cnt;
   if (iflag != 1) goto L150;
-  // Go get a new mother from stage K
+
 L310:
+  // Go get a new mother from stage K
   iflag = 1;
   f6xact(
       nro,
@@ -1028,7 +1016,7 @@ int f3xact(
   // ncol is 1
   if (ncol <= 1) {
     if (ncol > 0) {
-      *dlp -= fact[irow[1]] - fact[irow[2]];
+      *dlp -= fact[irow[1]] + fact[irow[2]];
       for (i = 3; i <= nrow; ++i) {
         *dlp -= fact[irow[i]];
       }
@@ -1040,7 +1028,7 @@ int f3xact(
   if (nrow * ncol == 4) {
     n11 = (irow[1] + 1) * (icol[1] + 1) /  (*mm + 2);
     n12 = irow[1] - n11;
-    *dlp -= fact[n11] - fact[n12] - fact[icol[1] - n11] - fact[icol[2]-n12];
+    *dlp -= (fact[n11] + fact[n12] + fact[icol[1] - n11] + fact[icol[2]-n12]);
     goto L9000;
   }
 
@@ -1117,7 +1105,7 @@ int f3xact(
   }
 
   // Initialize pointers
-  vmn = 1.0e-10;
+  vmn = 1.0e10;
   nc1s = nco - 1;
   irl = 1;
   ks = 0;
@@ -1178,7 +1166,7 @@ L110:
   // Generate a node
   --nu[lev];
   if (nu[lev] == 0) {
-    if (lev  == 1) goto L200;
+    if (lev == 1) goto L200;
     --lev;
     goto L110;
   }
@@ -1198,7 +1186,7 @@ L120:
     nr[lev] = nrt - lb[lev];
     goto L120;
   }
-  alen[nco] = alen[lev] = fact[nr[lev]];
+  alen[nco] = alen[lev] + fact[nr[lev]];
   lb[nco] = nr[lev];
 
   v = val + alen[nco];
@@ -1349,7 +1337,7 @@ L9000:
   return 0;
 }
 
-int f4xact(
+void f4xact(
     int nrow,
     const int irow[],
     int ncol,
@@ -1405,8 +1393,8 @@ int f4xact(
   icstk -= ncol + 1;
   irstk -= nrow + 1;
 
-#define get_irstk(i, j) irstk[j + i * nrow]
-#define get_icstk(i, j) icstk[j + i * ncol]
+#define get_irstk(i, j) irstk[i + (j) * nrow]
+#define get_icstk(i, j) icstk[i + (j) * ncol]
 
   // Take care of the easy cases firstkt
   if (nrow == 1) {
@@ -1490,7 +1478,6 @@ L60:
 
   irt = get_irstk(i, istk);
   ict = get_icstk(j, istk);
-
   mn = irt;
   if (mn > ict) mn = ict;
   y += fact[mn];
@@ -1501,7 +1488,7 @@ L60:
     f11act(&get_icstk(1, istk), j, nco, &get_icstk(1, istk + 1));
   } else if (irt > ict) {
     --nco;
-    f11act(&get_icstk(1, istk), j,  nco, &get_icstk(1, istk + 1));
+    f11act(&get_icstk(1, istk), j, nco, &get_icstk(1, istk + 1));
     f8xact(&get_irstk(1, istk), irt - ict, i, nro, &get_irstk(1, istk + 1));
   } else {
     --nro;
@@ -1567,8 +1554,7 @@ L110:
   goto L110;
 
 L9000:
-
-  return 0;
+  return;
 }
 
 int f5xact(
@@ -1889,7 +1875,7 @@ L90:
     }    
 
     // Get ks
-    idif[k1] = idif[k1] - 1;
+    --idif[k1];
     *ks = 0;
 L100:
     ++(*ks);
@@ -2107,9 +2093,7 @@ c-----------------------------------------------------------------------
   if (itype == 2 || itype == 3) {
     *iwkpt += number;
   } else {
-    if (ret % 2 != 0) {
-      ret += 1;
-    }
+    if (ret % 2 != 0) ++ret;
     *iwkpt += 2 * number;
     ret /= 2;
   }
@@ -2144,30 +2128,25 @@ void isort(int n, int *ix) {
   j = n;
 
 L10:
-  if (i >= j) {
-    goto L40;
-  }
+  if (i >= j) goto L40;
   kl = i;
   ku = j;
   ikey = i;
   ++j;
 
-// Find element in first half
 L20:
+  // Find element in first half
   ++i;
   if (i < j) {
-    if (ix[ikey] >=ix[i]) {
-      goto L20;
-    }
+    if (ix[ikey] >=ix[i]) goto L20;
   }
 
-// Find element in second half
 L30:
+  // Find element in second half
   --j;
-  if (ix[j] > ix[ikey]) {
-    goto L30;
-  }
-//Interchange
+  if (ix[j] > ix[ikey]) goto L30;
+
+  // Interchange
   if (i < j) {
     it = ix[i];
     ix[i] = ix[j];
@@ -2178,7 +2157,7 @@ L30:
   ix[ikey] = ix[j];
   ix[j] = it;
 
-// Save upper and lower subscripts of the array yet to be sorted
+  // Save upper and lower subscripts of the array yet to be sorted
   if (m < 11) {
     if (j - kl < ku - j) {
       il[m] = j + 1;
