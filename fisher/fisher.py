@@ -7,7 +7,7 @@ import numpy as np
 import ctypes
 import os
 
-from ctypes import c_long, c_double, byref
+from ctypes import c_int32, c_long, c_double, byref
 
 lib_path = os.path.join(os.getcwd(), "fisher", "src", "fisher.so")
 
@@ -21,7 +21,8 @@ ary = np.array([
 nrow, ncol = ary.shape
 
 ary = np.array(ary.flat).tolist()
-ary_c = (c_long * len(ary))(*ary)
+print(ary)
+ary_c = (c_int32 * len(ary))(*ary)
 
 expect = c_double(-1.)
 percent = c_double(100.)
@@ -37,7 +38,7 @@ ret = fisher.fexact(
     nrow,
     ncol,
     ary_c,
-    nrow,
+    ncol,
     expect,
     percent,
     emin,
@@ -50,3 +51,5 @@ ret = fisher.fexact(
 print(ret)
 print(prt.value)
 print(pre.value)
+
+# PRT =0.053346 PRE = 0.793284
