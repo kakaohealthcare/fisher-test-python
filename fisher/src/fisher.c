@@ -1593,8 +1593,154 @@ int f5xact(
     int* nl,
     int ifreq,
     int* itop,
-    int ipsh
-) {
+    int ipsh) {
+/*
+-----------------------------------------------------------------------
+  Name:       F5XACT
+
+  Purpose:    Put node on stack in network algorithm.
+
+  Usage:      CALL F5XACT (PASTP, TOL, KVAL, KEY, LDKEY, IPOIN, STP,
+                          LDSTP, IFRQ, NPOIN, NR, NL, IFREQ, ITOP,
+                          IPSH)
+
+  Arguments:
+     PASTP  - The past path length.  (Input)
+     TOL    - Tolerance for equivalence of past path lengths.  (Input)
+     KVAL   - Key value.  (Input)
+     KEY    - Vector of length LDKEY containing the key values.
+              (Input/output)
+     LDKEY  - Length of vector KEY.  (Input)
+     IPOIN  - Vector of length LDKEY pointing to the linked list
+              of past path lengths.  (Input/output)
+     STP    - Vector of length LSDTP containing the linked lists
+              of past path lengths.  (Input/output)
+     LDSTP  - Length of vector STP.  (Input)
+     IFRQ   - Vector of length LDSTP containing the past path
+              frequencies.  (Input/output)
+     NPOIN  - Vector of length LDSTP containing the pointers to
+              the next past path length.  (Input/output)
+     NR     - Vector of length LDSTP containing the right object
+              pointers in the tree of past path lengths.
+              (Input/output)
+     NL     - Vector of length LDSTP containing the left object
+              pointers in the tree of past path lengths.
+              (Input/output)
+     IFREQ  - Frequency of the current path length.  (Input)
+     ITOP   - Pointer to the top of STP.  (Input)
+     IPSH   - Option parameter.  (Input)
+              If IPSH is true, the past path length is found in the
+              table KEY.  Otherwise the location of the past path
+              length is assumed known and to have been found in
+              a previous call.
+-----------------------------------------------------------------------
+*/
+  --key; --ipoin; --stp; --ifrq; --npoin; --nr; --nl;
+
+  int ipn, ird, itmp;
+  double test1, test2;
+  int itp;
+
+  if (ipsh) {
+    // Convert KVAL to integer in range 1, ..., LDKEY.
+    ird = *kval % ldkey + 1;
+
+    // Search for an unused location
+    for (itp = ird; itp <= ldkey; ++itp){
+      if (key[itp] == *kval) goto L40;
+      if (key[itp] < 0) goto L30;
+    }
+
+    for (itp = 1; itp <= ird - 1; ++itp) {
+      if (key[itp] == *kval) goto L40;
+      if (key[itp] < 0) goto L30;
+    }
+
+    // Return if KEY array is full
+    return prterr(6, "LDKEY is too small for this problem. \
+      It is not possible to estimate the value of LDKEY \
+      required, but twice the current value may be sufficient.");
+
+L30:
+    // Update KEY
+    key[itp] = *kval;
+    ++(*itop);
+    ipoin[itp] = *itop;
+
+    // Return if STP array full
+    if (*itop > ldstp) {
+      return prterr(7, "LDSTP is too small for this problem. \
+        It is not possible to estimate the value of LDSTP \
+        required, but twice the current value may be sufficient");
+    }
+
+    // Update STP, etc.
+    npoin[*itop] = -1;
+    nr[*itop] = -1;
+    nl[*itop] = -1;
+    stp[*itop] = pastp;
+    ifrq[*itop] = ifreq;
+    goto L9000;
+  }
+L40:
+  // Find location, if any, of pastp
+  ipn = ipoin[itp];
+  test1 = pastp - tol;
+  test2 = pastp + tol;
+
+L50:
+  if (stp[ipn] < test1) {
+    ipn = nl[ipn];
+    if (ipn > 0) goto L50;
+  } else if (stp[ipn] > test2) {
+    ipn = nr[ipn];
+    if (ipn > 0) goto L50;
+  } else {
+    ifrq[ipn] += ifreq;
+    goto L9000;
+  }
+
+  // Return if STP array full
+  ++(*itop);
+  if (*itop > ldstp) {
+    return prterr(7, "LDSTP is too small for this problem. \
+        It is not possible to estimate the value of LDSTP \
+        required, but twice the current value may be sufficient");
+  }
+
+  // Find location to add value
+  ipn = ipoin[itp];
+  itmp = ipn;
+
+L60:
+  if (stp[ipn] < test1) {
+    itmp = ipn;
+    ipn = nl[ipn];
+    if (ipn > 0) {
+      goto L60;
+    } else {
+      nl[itmp] = *itop;
+    }
+  } else if (stp[ipn] > test2) {
+    itmp = ipn;
+    ipn = nr[ipn];
+    if (ipn > 0) {
+      goto L60;
+    } else {
+      nr[itmp] = *itop;
+    }
+  }
+
+  // Update STP, etc.
+  npoin[*itop] = npoin[itmp];
+  npoin[itmp] = *itop;
+  stp[*itop] = pastp;
+  ifrq[*itop] = ifreq;
+  nl[*itop] = -1;
+  nr[*itop] = -1;
+
+L9000:
+
   return 0;
 }
 
