@@ -102,7 +102,7 @@ void f6xact(
     int ldkey,
     int* last,
     int* ipn);
-int f7xact(
+void f7xact(
     int nrow,
     int* imax,
     int* idif,
@@ -899,7 +899,7 @@ L300:
   }
 
   // Generate a new daughter node
-  int f7_ret = f7xact(
+  f7xact(
       kmax,
       &iro[1],
       &idif[1],
@@ -907,7 +907,6 @@ L300:
       &ks,
       &iflag
   );
-  if (f7_ret != 0) return f7_ret;
   if (iflag != 1) goto L150;
 
   // Go get a new mother from stage K
@@ -1801,15 +1800,110 @@ L10:
   }
 }
 
-int f7xact(
+void f7xact(
     int nrow,
     int* imax,
     int* idif,
     int* k,
     int* ks,
     int* iflag) {
-  *iflag = 1;
-  return 0;
+/*
+-----------------------------------------------------------------------
+  Name:       F7XACT
+
+  Purpose:    Generate the new nodes for given marinal totals.
+
+  Usage:      CALL F7XACT (NROW, IMAX, IDIF, K, KS, IFLAG)
+
+  Arguments:
+     NROW   - The number of rows in the table.  (Input)
+     IMAX   - The row marginal totals.  (Input)
+     IDIF   - The column counts for the new column.  (Input/output)
+     K      - Indicator for the row to decrement.  (Input/output)
+     KS     - Indicator for the row to increment.  (Input/output)
+     IFLAG  - Status indicator.  (Output)
+              If IFLAG is zero, a new table was generated.  For
+              IFLAG = 1, no additional tables could be generated.
+-----------------------------------------------------------------------
+*/
+  --imax; --idif;
+
+  int i, k1, m, mm;
+
+  *iflag = 0;
+
+  // Find node which can be incremented, ks
+  if (*ks == 0) {
+L10:
+    ++(*ks);
+    if (idif[*ks] == imax[*ks]) goto L10;
+  }
+
+  // Find node to decrement (>ks)
+  if (idif[*k] > 0 && *k > *ks) {
+    --idif[*k];
+L30:
+    --(*k);
+    if (imax[*k] == 0) goto L30;
+    m = *k;
+
+L40:
+    // Find node to increment (>= ks)
+    if (idif[m] >= imax[m]) {
+      --m;
+      goto L40;
+    }
+    ++idif[m];
+
+    // Chang eks
+    if (m == *ks) {
+      if (idif[m] == imax[m]) *ks = *k;
+    }
+  } else {
+L50:
+    // Check for finish
+    for (k1 = *k + 1; k1 <= nrow; ++i) {
+      if (idif[k1] > 0) goto L70;
+    }
+    *iflag = 1;
+    goto L9000;
+
+L70:
+    // Reallocate counts
+    mm = 1;
+    for (i = 1; i <= *k; ++i) {
+      mm += idif[i];
+      idif[i] = 0;
+    }
+    *k = k1;
+L90:
+    --(*k);
+    m = min(mm, imax[*k]);
+    idif[*k] = m;
+    mm -= m;
+    if (mm > 0 && *k != 1) goto L90;
+
+    // Check that all counts reallocated
+    if (mm > 0) {
+      if (k1 != nrow) {
+        *k = k1;
+        goto L50;
+      }
+      *iflag = 1;
+      goto L9000;
+    }    
+
+    // Get ks
+    idif[*ks] = idif[k1] - 1;
+    *ks = 0;
+L100:
+    ++(*ks);
+    if (*ks > *k) goto L9000;
+    if (idif[*ks] >= imax[*ks]) goto L100;
+  }
+
+L9000:
+  return;
 }
 
 void f8xact(const int irow[], int is, int i1, int izero, int* new) {
