@@ -15,9 +15,9 @@ class TestRpy2:
     stats = importr("stats")
     return stats.fisher_test
 
-  def _run_r_func(self, r_func, ary):
+  def _run_r_func(self, r_func, ary, **kwargs):
     ary = numpy2rpy(ary)
-    return r_func(ary)
+    return r_func(ary, **kwargs)[0][0]
 
   @pytest.mark.parametrize(
       "ary",
@@ -27,10 +27,10 @@ class TestRpy2:
       ]
   )
   def test_fisher_2x2(self, ary, r_func):
-    _, pre = fisher_test(ary)
-    
-    res = self._run_r_func(r_func, ary)
-    assert np.isclose(pre, res[0][0])
+    assert np.isclose(
+        fisher_test(ary),
+        self._run_r_func(r_func, ary)
+    )
 
   @pytest.mark.parametrize(
       "ary",
@@ -40,7 +40,21 @@ class TestRpy2:
       ]
   )
   def test_fisher_2xN(self, ary, r_func):
-    _, pre = fisher_test(ary)
+    assert np.isclose(
+        fisher_test(ary),
+        self._run_r_func(r_func, ary)
+    )
 
-    res = self._run_r_func(r_func, ary)
-    assert np.isclose(pre, res[0][0])
+  @pytest.mark.parametrize(
+      "ary",
+      [
+          np.random.randint(80, 100, size=(2, random.randint(3, 10)))
+          for _ in range(10)
+      ]
+  )
+  def test_fisher_2xN_simulate_pvalue(self, ary, r_func):
+    assert np.isclose(
+        fisher_test(ary, simulate_pvalue=True),
+        self._run_r_func(r_func, ary, simulate_p_value=True),
+        atol=5e-2         # simulation by random. seed might be different.
+    )
