@@ -30,17 +30,17 @@ class TestRpy2:
     _, pre = fisher_test(ary)
     
     res = self._run_r_func(r_func, ary)
-    assert np.isclose(pre, res[0][0], atol=1e-3)
+    assert np.isclose(pre, res[0][0])
 
   @pytest.mark.parametrize(
       "ary",
       [
-          np.random.randint(80, 100, size=(2,random.randint(3, 5)))
+          np.random.randint(80, 100, size=(2, random.randint(3, 5)))
           for _ in range(10)
       ]
   )
   def test_fisher_2xN(self, ary, r_func):
     _, pre = fisher_test(ary)
-    
+
     res = self._run_r_func(r_func, ary)
-    assert np.isclose(pre, res[0][0], atol=1e-3)
+    assert np.isclose(pre, res[0][0])
