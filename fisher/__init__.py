@@ -1,8 +1,3 @@
-"""
-execution code for
-quick test
-"""
-
 import numpy as np
 import ctypes
 import os
@@ -13,7 +8,12 @@ from ctypes import c_int, c_int32, c_double, byref
 
 
 def load_lib(lib_name):
-  lib_path = os.path.join(os.getcwd(), "fisher", "src", lib_name)
+  
+  lib_path = os.path.join(
+      os.path.split(__file__)[0],
+      "src",
+      lib_name
+  )
   return ctypes.cdll.LoadLibrary(lib_path)
 
 
