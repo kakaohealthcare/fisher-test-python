@@ -15,6 +15,10 @@ import nump as np
 from fisher import fisher_test
 
 ary = np.array([[1,2,3], [2,3,4]])
-fisher_test(ary)
+p_value = fisher_test(ary)
 
 ```
+
+## Contact
+
+* Jungwoo - jungwoo@linewalks.com
