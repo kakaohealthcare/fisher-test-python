@@ -4,7 +4,6 @@ import random
 
 from fisher import fisher_test
 
-from rpy2 import robjects
 from rpy2.robjects.numpy2ri import numpy2rpy
 from rpy2.robjects.packages import importr
 
