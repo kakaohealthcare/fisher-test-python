@@ -1,14 +1,6 @@
-from distutils.command.build_py import build_py
 import os
-import sys
-import site
 
-from setuptools import (
-    setup,
-    find_packages,
-    Extension
-)
-from setuptools.command.install import install
+from setuptools import setup
 from distutils.command.build_py import build_py
 
 
