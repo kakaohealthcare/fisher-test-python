@@ -2301,7 +2301,3 @@ L30:
   ret = f + (y - 0.5) * log(y) - y + a1 + (((-a2 * z + a3) * z - a4) * z + a5) / y;
   return ret;
 }
-
-
-void test_func() {
-}
