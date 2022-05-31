@@ -678,7 +678,7 @@ void rcont2(
 
       for ( ; ; )
       {
-        nlm = ( int ) ( ( double ) ( ia * id ) / ( double ) ( ie ) + 0.5 );
+        nlm = ( int )( ia * ( id / ( double ) ie) + 0.5 );
         iap = ia + 1;
         idp = id + 1;
         igp = idp - nlm;
