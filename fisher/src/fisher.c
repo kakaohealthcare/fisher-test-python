@@ -1,7 +1,8 @@
 /*
 This version based on the version in http://netlib.org/toms/
+643.gz
 
-By jungwoo@linewalks.com
+By sector.rest@kakaohealthcare.com
 */
 #include <limits.h>
 #include <math.h>
